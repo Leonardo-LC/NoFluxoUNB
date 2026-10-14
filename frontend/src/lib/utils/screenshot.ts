@@ -3,6 +3,8 @@
  * Usa html2canvas-pro (suporta oklab/oklch do Tailwind v4), com fallback nativo.
  */
 
+import type { Aresta } from './export-conexoes';
+
 const PADDING = 32;
 const BORDER_RADIUS = 12;
 /** Fundo histórico do PNG no tema escuro — mantido idêntico ao original. */
@@ -35,11 +37,27 @@ export function naturalCaptureSize(element: HTMLElement): { width: number; heigh
 	};
 }
 
+export interface CaptureOptions {
+	/**
+	 * Pré-requisitos (de → para). Quando presente, a imagem sai com o desenho
+	 * de conexões da exportação (ver export-conexoes-dom.ts), não o da tela.
+	 */
+	conexoes?: Aresta[];
+}
+
 export async function captureScreenshot(
 	element: HTMLElement,
-	filename = 'fluxograma.png'
+	filename = 'fluxograma.png',
+	options: CaptureOptions = {}
 ): Promise<void> {
+	let removerCopia: (() => void) | null = null;
 	try {
+		if (options.conexoes) {
+			const { montarCopiaComConexoes } = await import('./export-conexoes-dom');
+			const copia = montarCopiaComConexoes(element, options.conexoes);
+			element = copia.el;
+			removerCopia = copia.remover;
+		}
 		const bgColor = resolveBackgroundColor();
 		let html2canvas: ((el: HTMLElement, opts: Record<string, unknown>) => Promise<HTMLCanvasElement>) | null = null;
 		try {
@@ -94,6 +112,8 @@ export async function captureScreenshot(
 	} catch (error) {
 		console.error('Screenshot failed:', error);
 		throw new Error('Não foi possível capturar a imagem do fluxograma.');
+	} finally {
+		removerCopia?.();
 	}
 }
 
