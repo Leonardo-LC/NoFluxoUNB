@@ -19,6 +19,22 @@ function resolveBackgroundColor(): string {
 	return document.documentElement.classList.contains('dark') ? BG_COLOR_DARK : BG_COLOR_LIGHT;
 }
 
+/**
+ * Tamanho natural (sem o CSS `zoom` do pan/zoom do fluxograma) e o zoom vigente.
+ * O html2canvas não entende `zoom`: capturar o elemento com zoom ≠ 1 saía com os
+ * cards encolhidos, palavras sobrepostas e as conexões fora do lugar. A captura
+ * usa o clone com `zoom: 1` e este tamanho — a tela do usuário não muda.
+ */
+export function naturalCaptureSize(element: HTMLElement): { width: number; height: number; zoom: number } {
+	const zoom = Number.parseFloat(getComputedStyle(element).zoom) || 1;
+	const rect = element.getBoundingClientRect();
+	return {
+		width: Math.ceil(rect.width / zoom),
+		height: Math.ceil(rect.height / zoom),
+		zoom
+	};
+}
+
 export async function captureScreenshot(
 	element: HTMLElement,
 	filename = 'fluxograma.png'
@@ -37,17 +53,20 @@ export async function captureScreenshot(
 
 		if (html2canvas) {
 			// Resolução: 3x para texto nítido, limitado pelo tamanho máximo de canvas
-			const rect = element.getBoundingClientRect();
+			const { width, height } = naturalCaptureSize(element);
 			const MAX_CANVAS_DIM = 12000;
-			const scale = Math.max(2, Math.min(3, MAX_CANVAS_DIM / Math.max(rect.width, rect.height, 1)));
+			const scale = Math.max(2, Math.min(3, MAX_CANVAS_DIM / Math.max(width, height, 1)));
 
 			canvas = await html2canvas(element, {
 				backgroundColor: bgColor,
 				scale,
+				width,
+				height,
 				useCORS: true,
 				logging: false,
 				allowTaint: false,
 				onclone: (doc: Document, clonedEl: HTMLElement) => {
+					clonedEl.style.zoom = '1';
 					clonedEl.style.overflow = 'visible';
 					clonedEl.style.background = bgColor;
 					// html2canvas pinta box-shadow/backdrop-filter como manchas claras
@@ -79,12 +98,11 @@ export async function captureScreenshot(
 }
 
 async function captureWithSvgFallback(element: HTMLElement, bgColor: string): Promise<HTMLCanvasElement> {
-	const rect = element.getBoundingClientRect();
-	const width = Math.round(rect.width);
-	const height = Math.round(rect.height);
+	const { width, height } = naturalCaptureSize(element);
 
 	const clone = element.cloneNode(true) as HTMLElement;
 	const styles = getComputedStyle(element);
+	clone.style.zoom = '1';
 	clone.style.width = `${width}px`;
 	clone.style.height = `${height}px`;
 	clone.style.overflow = 'visible';
