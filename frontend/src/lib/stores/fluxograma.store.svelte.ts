@@ -1008,15 +1008,27 @@ function createFluxogramaStore() {
 			const prevHover = state.hoveredSubjectCode;
 			const prevPreview = state.hoverPreviewSubjectCode;
 			const shouldRestore = !!captureOptions?.connectionMode;
+			// "Todas as conexões": a imagem usa o desenho próprio da exportação (setas só
+			// entre vizinhos + "também requer"), então a tela fica sem setas durante a captura.
+			const comConexoes = captureOptions?.connectionMode === 'all';
+			const conexoes = comConexoes
+				? (state.courseData?.materias ?? []).flatMap((m) =>
+						(m.preRequisitos ?? []).map((pr) => ({ de: pr.codigoMateria, para: m.codigoMateria }))
+					)
+				: undefined;
+			const nomes = comConexoes
+				? Object.fromEntries(
+						(state.courseData?.materias ?? []).map((m) => [m.codigoMateria.trim().toUpperCase(), m.nomeMateria])
+					)
+				: undefined;
 			try {
 				state.isCapturingScreenshot = true;
 				if (captureOptions?.connectionMode) {
-					state.connectionMode = captureOptions.connectionMode;
+					state.connectionMode = comConexoes ? 'off' : captureOptions.connectionMode;
 					state.hoveredSubjectCode = null;
 					state.hoverPreviewSubjectCode = null;
 				}
-				// Modo "todas" altera gaps entre colunas — precisa de mais tempo para o layout/SVG
-				const delayMs = captureOptions?.connectionMode === 'all' ? 450 : captureOptions?.connectionMode === 'off' ? 180 : 100;
+				const delayMs = captureOptions?.connectionMode ? 180 : 100;
 				await new Promise((resolve) => setTimeout(resolve, delayMs));
 				const courseName = state.courseData?.nomeCurso ?? 'fluxograma';
 				const base = courseName.replace(/\s+/g, '_');
@@ -1027,7 +1039,7 @@ function createFluxogramaStore() {
 							? '_normal'
 							: '';
 				const filename = `${base}${suffix}.png`;
-				await captureScreenshot(container, filename);
+				await captureScreenshot(container, filename, { conexoes, nomes });
 				toast.success('Screenshot salvo com sucesso!');
 			} catch {
 				toast.error('Não foi possível capturar a imagem.');

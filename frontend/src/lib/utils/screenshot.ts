@@ -3,6 +3,8 @@
  * Usa html2canvas-pro (suporta oklab/oklch do Tailwind v4), com fallback nativo.
  */
 
+import type { Aresta } from './export-conexoes';
+
 const PADDING = 32;
 const BORDER_RADIUS = 12;
 /** Fundo histórico do PNG no tema escuro — mantido idêntico ao original. */
@@ -19,11 +21,45 @@ function resolveBackgroundColor(): string {
 	return document.documentElement.classList.contains('dark') ? BG_COLOR_DARK : BG_COLOR_LIGHT;
 }
 
+/**
+ * Tamanho natural (sem o CSS `zoom` do pan/zoom do fluxograma) e o zoom vigente.
+ * O html2canvas não entende `zoom`: capturar o elemento com zoom ≠ 1 saía com os
+ * cards encolhidos, palavras sobrepostas e as conexões fora do lugar. A captura
+ * usa o clone com `zoom: 1` e este tamanho — a tela do usuário não muda.
+ */
+export function naturalCaptureSize(element: HTMLElement): { width: number; height: number; zoom: number } {
+	const zoom = Number.parseFloat(getComputedStyle(element).zoom) || 1;
+	const rect = element.getBoundingClientRect();
+	return {
+		width: Math.ceil(rect.width / zoom),
+		height: Math.ceil(rect.height / zoom),
+		zoom
+	};
+}
+
+export interface CaptureOptions {
+	/**
+	 * Pré-requisitos (de → para). Quando presente, a imagem sai com o desenho
+	 * de conexões da exportação (ver export-conexoes-dom.ts), não o da tela.
+	 */
+	conexoes?: Aresta[];
+	/** Nome por código (legenda das trilhas). */
+	nomes?: Record<string, string>;
+}
+
 export async function captureScreenshot(
 	element: HTMLElement,
-	filename = 'fluxograma.png'
+	filename = 'fluxograma.png',
+	options: CaptureOptions = {}
 ): Promise<void> {
+	let removerCopia: (() => void) | null = null;
 	try {
+		if (options.conexoes) {
+			const { montarCopiaComConexoes } = await import('./export-conexoes-dom');
+			const copia = montarCopiaComConexoes(element, options.conexoes, options.nomes);
+			element = copia.el;
+			removerCopia = copia.remover;
+		}
 		const bgColor = resolveBackgroundColor();
 		let html2canvas: ((el: HTMLElement, opts: Record<string, unknown>) => Promise<HTMLCanvasElement>) | null = null;
 		try {
@@ -37,17 +73,20 @@ export async function captureScreenshot(
 
 		if (html2canvas) {
 			// Resolução: 3x para texto nítido, limitado pelo tamanho máximo de canvas
-			const rect = element.getBoundingClientRect();
+			const { width, height } = naturalCaptureSize(element);
 			const MAX_CANVAS_DIM = 12000;
-			const scale = Math.max(2, Math.min(3, MAX_CANVAS_DIM / Math.max(rect.width, rect.height, 1)));
+			const scale = Math.max(2, Math.min(3, MAX_CANVAS_DIM / Math.max(width, height, 1)));
 
 			canvas = await html2canvas(element, {
 				backgroundColor: bgColor,
 				scale,
+				width,
+				height,
 				useCORS: true,
 				logging: false,
 				allowTaint: false,
 				onclone: (doc: Document, clonedEl: HTMLElement) => {
+					clonedEl.style.zoom = '1';
 					clonedEl.style.overflow = 'visible';
 					clonedEl.style.background = bgColor;
 					// html2canvas pinta box-shadow/backdrop-filter como manchas claras
@@ -75,16 +114,17 @@ export async function captureScreenshot(
 	} catch (error) {
 		console.error('Screenshot failed:', error);
 		throw new Error('Não foi possível capturar a imagem do fluxograma.');
+	} finally {
+		removerCopia?.();
 	}
 }
 
 async function captureWithSvgFallback(element: HTMLElement, bgColor: string): Promise<HTMLCanvasElement> {
-	const rect = element.getBoundingClientRect();
-	const width = Math.round(rect.width);
-	const height = Math.round(rect.height);
+	const { width, height } = naturalCaptureSize(element);
 
 	const clone = element.cloneNode(true) as HTMLElement;
 	const styles = getComputedStyle(element);
+	clone.style.zoom = '1';
 	clone.style.width = `${width}px`;
 	clone.style.height = `${height}px`;
 	clone.style.overflow = 'visible';
