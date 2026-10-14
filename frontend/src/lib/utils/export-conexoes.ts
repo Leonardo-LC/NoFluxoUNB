@@ -200,3 +200,49 @@ export function caminhoArredondado(pontos: [number, number][], raio = 8): string
 	const [lx, ly] = pontos[pontos.length - 1];
 	return `${d} L${f(lx)},${f(ly)}`;
 }
+
+export interface Trilha {
+	/** Matéria-raiz da trilha (sem pré-requisito dentro do curso). */
+	raiz: string;
+	/** Semestres de distância até a raiz (0 na própria raiz). */
+	profundidade: number;
+}
+
+/**
+ * Trilha de cada matéria: a raiz (matéria sem pré-requisito) de onde a cadeia
+ * dela parte. Quem depende de mais de uma raiz fica com a mais antiga (menor
+ * coluna; empate pelo código). A cor da seta vem da trilha da origem, então
+ * cada cadeia (Cálculo, Algoritmos, Discreta…) aparece numa cor só.
+ */
+export function calcularTrilhas(
+	arestas: Aresta[],
+	colunaDe: Map<string, number>
+): Map<string, Trilha> {
+	const pre = new Map<string, string[]>();
+	const nos = new Set<string>();
+	for (const a of arestas) {
+		const de = norm(a.de);
+		const para = norm(a.para);
+		if (!colunaDe.has(de) || !colunaDe.has(para) || colunaDe.get(para)! <= colunaDe.get(de)!)
+			continue;
+		nos.add(de);
+		nos.add(para);
+		pre.set(para, [...(pre.get(para) ?? []), de]);
+	}
+	const memo = new Map<string, string>();
+	const raizDe = (n: string): string => {
+		const salvo = memo.get(n);
+		if (salvo) return salvo;
+		const ps = pre.get(n) ?? [];
+		const raizes = ps.length ? ps.map(raizDe) : [n];
+		raizes.sort((a, b) => colunaDe.get(a)! - colunaDe.get(b)! || a.localeCompare(b));
+		memo.set(n, raizes[0]);
+		return raizes[0];
+	};
+	const trilhas = new Map<string, Trilha>();
+	for (const n of nos) {
+		const raiz = raizDe(n);
+		trilhas.set(n, { raiz, profundidade: colunaDe.get(n)! - colunaDe.get(raiz)! });
+	}
+	return trilhas;
+}

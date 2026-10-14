@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	calcularTrilhas,
 	caminhoArredondado,
 	contarCruzamentos,
 	ordenarPorBaricentro,
@@ -163,5 +164,42 @@ describe('caminhoArredondado', () => {
 		expect(d).toContain('Q50,0');
 		expect(d).toContain('Q50,100');
 		expect(d.endsWith('L100,100')).toBe(true);
+	});
+});
+
+describe('calcularTrilhas', () => {
+	const cols = new Map([
+		['CALC1', 0],
+		['ALG', 0],
+		['CALC2', 1],
+		['ED1', 1],
+		['MN', 2],
+		['ED2', 2]
+	]);
+
+	it('cada matéria herda a raiz da cadeia e a distância até ela', () => {
+		const t = calcularTrilhas(
+			[
+				{ de: 'CALC1', para: 'CALC2' },
+				{ de: 'CALC2', para: 'MN' },
+				{ de: 'ALG', para: 'ED1' },
+				{ de: 'ED1', para: 'ED2' }
+			],
+			cols
+		);
+		expect(t.get('MN')).toEqual({ raiz: 'CALC1', profundidade: 2 });
+		expect(t.get('ED2')).toEqual({ raiz: 'ALG', profundidade: 2 });
+		expect(t.get('ALG')).toEqual({ raiz: 'ALG', profundidade: 0 });
+	});
+
+	it('quem depende de duas trilhas fica com a raiz mais antiga (empate pelo código)', () => {
+		const t = calcularTrilhas(
+			[
+				{ de: 'CALC1', para: 'MN' },
+				{ de: 'ALG', para: 'MN' }
+			],
+			cols
+		);
+		expect(t.get('MN')?.raiz).toBe('ALG');
 	});
 });

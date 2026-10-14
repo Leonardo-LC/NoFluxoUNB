@@ -43,6 +43,8 @@ export interface CaptureOptions {
 	 * de conexões da exportação (ver export-conexoes-dom.ts), não o da tela.
 	 */
 	conexoes?: Aresta[];
+	/** Nome por código (legenda das trilhas). */
+	nomes?: Record<string, string>;
 }
 
 export async function captureScreenshot(
@@ -54,7 +56,7 @@ export async function captureScreenshot(
 	try {
 		if (options.conexoes) {
 			const { montarCopiaComConexoes } = await import('./export-conexoes-dom');
-			const copia = montarCopiaComConexoes(element, options.conexoes);
+			const copia = montarCopiaComConexoes(element, options.conexoes, options.nomes);
 			element = copia.el;
 			removerCopia = copia.remover;
 		}

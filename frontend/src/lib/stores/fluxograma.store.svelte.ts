@@ -1016,6 +1016,11 @@ function createFluxogramaStore() {
 						(m.preRequisitos ?? []).map((pr) => ({ de: pr.codigoMateria, para: m.codigoMateria }))
 					)
 				: undefined;
+			const nomes = comConexoes
+				? Object.fromEntries(
+						(state.courseData?.materias ?? []).map((m) => [m.codigoMateria.trim().toUpperCase(), m.nomeMateria])
+					)
+				: undefined;
 			try {
 				state.isCapturingScreenshot = true;
 				if (captureOptions?.connectionMode) {
@@ -1034,7 +1039,7 @@ function createFluxogramaStore() {
 							? '_normal'
 							: '';
 				const filename = `${base}${suffix}.png`;
-				await captureScreenshot(container, filename, { conexoes });
+				await captureScreenshot(container, filename, { conexoes, nomes });
 				toast.success('Screenshot salvo com sucesso!');
 			} catch {
 				toast.error('Não foi possível capturar a imagem.');
